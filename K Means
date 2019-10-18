@@ -1,9 +1,17 @@
+# --------------------------------------
+# ----- Load Libraries -----------------
+# --------------------------------------
+
 library(dplyr)
 library(tidyr)
 library(ggplot2)
 library(plotrix)
 
-setwd("C:/Users/Kevin/Desktop/Research/Caudwell Xtreme Everest"); dir()
+# --------------------------------------
+# ----- Load & Prepare Data ------------
+# --------------------------------------
+
+setwd("..."); dir()
 
 data <- read.table("everest.dat")
 colnames(data) <- c("npno", "subjectr", "nllhead", "nllgast", "nllslp", "nllfatig", "nlldizzy", "nllt",
@@ -29,7 +37,7 @@ colnames(data) <- c("npno", "subjectr", "nllhead", "nllgast", "nllslp", "nllfati
                      "ktrlsa", "ktrlsb", "klct", "kstroop", "kgpnd",
                      "kgpd", "ksd", "kbd", "kcowa", "kreyd", "kretl",
                      "ntotal", "etotal", "etotaldb", "ktotaldb", "ktotal")
-
+                     
 for (i in 1:length(names(data))) {
   data[[i]] <- ifelse(data[[i]]==999, NA, data[[i]])
 }
