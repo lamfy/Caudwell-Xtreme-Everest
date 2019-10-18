@@ -1,0 +1,105 @@
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(plotrix)
+
+setwd("C:/Users/Kevin/Desktop/Research/Caudwell Xtreme Everest"); dir()
+
+data <- read.table("everest.dat")
+colnames(data) <- c("npno", "subjectr", "nllhead", "nllgast", "nllslp", "nllfatig", "nlldizzy", "nllt",
+                     "pllhead", "pllgast", "pllslp", "pllfatig", "plldizzy", "pllt",
+                     "ellhead", "ellgast", "ellslp", "ellfatig", "elldizzy", "ellt",
+                     "trek", "hand", "sex", "age", "eduy", "eduq", "tbfu",
+                     "bscs1", "bscs2", "bscs3", "bscs4", "bscs5", "bscs6", "bscs7", "bscs8", "bscs9",
+                     "viq", "piq", "fsiq",
+                     "nday", "ntested", "nadmin", "nsats", "nscs1", "nscs2", "nscs3", "nscs4",
+                     "nscs5", "nscs6", "nscs7", "nscs8", "nscs9", "nfatig", "nassess",
+                     "etested", "esats", "escs1", "escs2", "escs3", "escs4", "escs5",
+                     "escs6", "escs7", "escs8", "escs9", "efatig", "eassess",
+                     "ktested", "higher", "kwt", "kscs1", "kscs2", "kscs3", "kscs4", "kscs5",
+                     "kscs6", "kscs7", "kscs8", "kscs9", "kfatig", "kassess",
+                     "testcom", "bsstot", "nsstot", "esstot", "ksstot", "bsttot",
+                     "bcesdtot", "ncesdtot", "ecesdtot", "kcesdtot",
+                     "btrlsa", "btrlsb", "blct", "bstroop", "bgpnd",
+                     "bgpd", "bsd", "breyd", "bretl",
+                     "ntrlsa", "ntrlsb", "nlct", "nstroop", "ngpnd",
+                     "ngpd", "nsd", "nreyd", "nretl", "ncowa",
+                     "etrlsa", "etrlsb", "elct", "estroop", "egpnd",
+                     "egpd", "esd", "ebd", "ecowa", "ereyd", "eretl",
+                     "ktrlsa", "ktrlsb", "klct", "kstroop", "kgpnd",
+                     "kgpd", "ksd", "kbd", "kcowa", "kreyd", "kretl",
+                     "ntotal", "etotal", "etotaldb", "ktotaldb", "ktotal")
+
+for (i in 1:length(names(data))) {
+  data[[i]] <- ifelse(data[[i]]==999, NA, data[[i]])
+}
+
+data.clust <- subset(data, select=c(ntotal, etotal, ktotal))
+
+data.clust$ntotal <- ifelse(is.na(data.clust$ntotal), mean(data.clust$ntotal, na.rm=TRUE), data.clust$ntotal)
+data.clust$etotal <- ifelse(is.na(data.clust$etotal), mean(data.clust$etotal, na.rm=TRUE), data.clust$etotal)
+data.clust$ktotal <- ifelse(is.na(data.clust$ktotal), mean(data.clust$ktotal, na.rm=TRUE), data.clust$ktotal)
+
+# --------------------------------------
+# ----- Cluster Analysis ---------------
+# --------------------------------------
+
+wssplot <- function(data, k) {
+  wss <- list()
+  for (i in 2:k) {
+    set.seed(1234)
+    fit.kclust <- kmeans(scale(data), centers=i, nstart=100)
+    wss[i] <- fit.kclust$tot.withinss
+  }
+  data.wss <- data.frame(K=2:k, WSS=unlist(wss))
+  ggplot(data.wss, aes(x=K, y=WSS)) +
+    geom_point() +
+    geom_line() +
+    theme_bw()
+}
+
+wssplot(data.clust, 10)
+
+set.seed(1234)
+fit.kclust3 <- kmeans(scale(data.clust), centers=3, nstart=100)
+data.kclust3 <- mutate(data.clust, cluster=factor(fit.kclust3$cluster, levels=1:3))
+
+# --------------------------------------
+# ----- Data Visualisation -------------
+# --------------------------------------
+
+data.base <- data.frame(Cluster=1:3, 
+                        Location=c("Baseline", "Baseline", "Baseline"), 
+                        Mean=c(0, 0, 0),
+                        Lower=c(0, 0, 0),
+                        Upper=c(0, 0, 0))
+
+data.mean <- aggregate(data.kclust3[,1:3], list(data.kclust3$cluster), FUN=mean)
+data.mean <- gather(data.mean, Location, Mean, ntotal:ktotal, factor_key=TRUE)
+colnames(data.mean)[1] <- "Cluster"
+
+data.lowr <- aggregate(data.kclust3[,1:3], list(data.kclust3$cluster), FUN=function(x){mean(x)-1.96*std.error(x)})
+data.lowr <- gather(data.lowr, Location, Lower, ntotal:ktotal, factor_key=TRUE)
+colnames(data.lowr)[1] <- "Cluster"
+
+data.uppr <- aggregate(data.kclust3[,1:3], list(data.kclust3$cluster), FUN=function(x){mean(x)+1.96*std.error(x)})
+data.uppr <- gather(data.uppr, Location, Upper, ntotal:ktotal, factor_key=TRUE)
+colnames(data.uppr)[1] <- "Cluster"
+
+data.plot <- rbind(data.base, left_join(x=left_join(x=data.mean, y=data.lowr), y=data.uppr))
+
+data.plot$Cluster <- factor(data.plot$Cluster, levels=c("2", "1", "3"), labels=c("Improvement", "Mild Decline", "Pronounced Decline"))
+
+levels(data.plot$Location)[2] <- "Namche"
+levels(data.plot$Location)[3] <- "EBC"
+levels(data.plot$Location)[4] <- "Kathmandu"
+
+ggplot(data.plot, aes(x=Location, y=Mean, group=Cluster, color=Cluster, fill=Cluster)) +
+  geom_point(size=2) +
+  geom_line() +
+  geom_errorbar(aes(ymin=Lower, ymax=Upper), width=0.05) +
+  geom_hline(yintercept=0, linetype="dotted") +
+  scale_y_continuous(name="RCI Total Score\n", limits=c(-1.5, 1.5), breaks=seq(from=-1.5, to=1.5, by=0.5)) +
+  theme_bw() +
+  theme(legend.title=element_blank(),
+        axis.title.x=element_blank())
